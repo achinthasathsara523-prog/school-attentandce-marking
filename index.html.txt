@@ -1,0 +1,183 @@
+school-attendance-system/
+│
+├── index.php
+├── login.php
+├── logout.php
+│
+├── config/
+│   └── db.php
+│
+├── principal/
+│   ├── dashboard.php
+│   ├── students.php
+│   ├── teachers.php
+│   ├── reports.php
+│
+├── teacher/
+│   ├── dashboard.php
+│   ├── attendance.php
+│
+├── database/
+│   └── school.sql
+│
+├── assets/
+│   ├── css/
+│   └── js/
+│
+└── includes/
+    ├── header.php
+    └── footer.php
+CREATE DATABASE school_attendance;
+
+USE school_attendance;
+
+CREATE TABLE users (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    username VARCHAR(50) UNIQUE,
+    password VARCHAR(255),
+    role ENUM('principal','teacher')
+);
+
+CREATE TABLE students (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    admission_no VARCHAR(30),
+    student_name VARCHAR(100),
+    grade VARCHAR(10),
+    class_name VARCHAR(20),
+    parent_name VARCHAR(100),
+    phone VARCHAR(20)
+);
+
+CREATE TABLE attendance (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    student_id INT,
+    attendance_date DATE,
+    status ENUM('Present','Absent'),
+    FOREIGN KEY(student_id) REFERENCES students(id)
+);
+<?php
+
+$conn = new mysqli(
+    "localhost",
+    "root",
+    "",
+    "school_attendance"
+);
+
+if($conn->connect_error){
+    die("Connection Failed");
+}
+?>
+<?php
+session_start();
+include 'config/db.php';
+
+if(isset($_POST['login'])){
+
+$username=$_POST['username'];
+$password=$_POST['password'];
+
+$sql="SELECT * FROM users WHERE username='$username'";
+$result=$conn->query($sql);
+
+if($result->num_rows>0){
+
+$user=$result->fetch_assoc();
+
+if(password_verify($password,$user['password'])){
+
+$_SESSION['role']=$user['role'];
+
+if($user['role']=="principal"){
+header("Location: principal/dashboard.php");
+}else{
+header("Location: teacher/dashboard.php");
+}
+
+}
+}
+}
+?>
+<form method="POST">
+
+Student ID:
+<input type="number" name="student_id">
+
+Date:
+<input type="date" name="attendance_date">
+
+<select name="status">
+<option value="Present">Present</option>
+<option value="Absent">Absent</option>
+</select>
+
+<button name="save">Save</button>
+
+</form>
+<?php
+
+if(isset($_POST['save'])){
+
+$sid=$_POST['student_id'];
+$date=$_POST['attendance_date'];
+$status=$_POST['status'];
+
+$conn->query("
+INSERT INTO attendance
+(student_id,attendance_date,status)
+VALUES
+('$sid','$date','$status')
+");
+
+}
+?>
+<?php
+
+$totalStudents =
+$conn->query("SELECT COUNT(*) total FROM students")
+->fetch_assoc()['total'];
+
+$present =
+$conn->query("
+SELECT COUNT(*) total
+FROM attendance
+WHERE status='Present'
+AND attendance_date=CURDATE()
+")->fetch_assoc()['total'];
+
+$absent =
+$conn->query("
+SELECT COUNT(*) total
+FROM attendance
+WHERE status='Absent'
+AND attendance_date=CURDATE()
+")->fetch_assoc()['total'];
+
+?>
+
+<h2>Total Students : <?php echo $totalStudents; ?></h2>
+<h2>Present : <?php echo $present; ?></h2>
+<h2>Absent : <?php echo $absent; ?></h2>
+<?php
+
+$sql="
+SELECT
+students.student_name,
+attendance.attendance_date,
+attendance.status
+FROM attendance
+JOIN students
+ON students.id=attendance.student_id
+ORDER BY attendance_date DESC
+";
+
+$result=$conn->query($sql);
+
+while($row=$result->fetch_assoc()){
+
+echo $row['student_name']." | ";
+echo $row['attendance_date']." | ";
+echo $row['status']."<br>";
+
+}
+?>
